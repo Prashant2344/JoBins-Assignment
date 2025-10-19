@@ -1,0 +1,34 @@
+{
+  "name": "laravel-react-fullstack",
+  "version": "1.0.0",
+  "description": "Full-stack Laravel + React application",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run backend:dev\" \"npm run frontend:dev\"",
+    "backend:dev": "cd backend && php artisan serve",
+    "frontend:dev": "cd frontend && npm start",
+    "backend:install": "cd backend && composer install",
+    "frontend:install": "cd frontend && npm install",
+    "install:all": "npm run backend:install && npm run frontend:install",
+    "backend:migrate": "cd backend && php artisan migrate",
+    "backend:seed": "cd backend && php artisan db:seed",
+    "backend:test": "cd backend && php artisan test",
+    "frontend:test": "cd frontend && npm test",
+    "frontend:build": "cd frontend && npm run build",
+    "backend:cache:clear": "cd backend && php artisan cache:clear && php artisan config:clear && php artisan route:clear && php artisan view:clear",
+    "setup": "npm run install:all && npm run backend:migrate",
+    "clean": "rm -rf backend/vendor backend/node_modules frontend/node_modules frontend/build"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "keywords": [
+    "laravel",
+    "react",
+    "fullstack",
+    "api",
+    "spa"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
+}
