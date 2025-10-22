@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ClientController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -25,6 +26,15 @@ Route::get('/health', function () {
         'message' => 'API is running',
         'timestamp' => now()
     ]);
+});
+
+// Client Management API Routes
+Route::prefix('v1')->group(function () {
+    Route::post('clients/import', [ClientController::class, 'importCsv']);
+    Route::get('clients/duplicates/groups', [ClientController::class, 'getDuplicateGroups']);
+    Route::get('clients/stats', [ClientController::class, 'getStats']);
+    Route::delete('clients/delete-all', [ClientController::class, 'deleteAll']);
+    Route::apiResource('clients', ClientController::class);
 });
 
 // Example API routes

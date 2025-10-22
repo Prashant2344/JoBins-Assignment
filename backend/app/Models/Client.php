@@ -40,6 +40,22 @@ class Client extends Model
     }
 
     /**
+     * Scope to get records by duplicate group
+     */
+    public function scopeByDuplicateGroup($query, $groupId)
+    {
+        return $query->where('duplicate_group_id', $groupId);
+    }
+
+    /**
+     * Get all records in the same duplicate group
+     */
+    public function duplicateGroup()
+    {
+        return $this->where('duplicate_group_id', $this->duplicate_group_id);
+    }
+
+    /**
      * Check if this record is a duplicate of another
      */
     public function isDuplicateOf(Client $other)
