@@ -76,6 +76,56 @@ class ClientController extends Controller
     }
 
     /**
+     * Export clients to CSV
+     */
+    public function exportCsv(Request $request)
+    {
+        $query = Client::query();
+
+        // Filter by duplicates
+        if ($request->has('duplicates_only') && $request->boolean('duplicates_only')) {
+            $query->duplicates();
+        }
+
+        // Filter by unique records
+        if ($request->has('unique_only') && $request->boolean('unique_only')) {
+            $query->unique();
+        }
+
+        // Filter by duplicate group
+        if ($request->has('duplicate_group_id')) {
+            $query->byDuplicateGroup($request->duplicate_group_id);
+        }
+
+        $clients = $query->orderBy('created_at', 'desc')->get();
+
+        // Create CSV
+        $csv = Writer::createFromString('');
+        $csv->insertOne(['company_name', 'email', 'phone_number', 'is_duplicate', 'duplicate_group_id', 'created_at']);
+
+        foreach ($clients as $client) {
+            $csv->insertOne([
+                $client->company_name,
+                $client->email,
+                $client->phone_number,
+                $client->is_duplicate ? 'Yes' : 'No',
+                $client->duplicate_group_id ?? '',
+                $client->created_at->format('Y-m-d H:i:s')
+            ]);
+        }
+
+        $filename = 'clients_export_' . now()->format('Y-m-d_H-i-s') . '.csv';
+
+        return ResponseFacade::streamDownload(
+            function () use ($csv) {
+                echo $csv->toString();
+            },
+            $filename,
+            ['Content-Type' => 'text/csv']
+        );
+    }
+
+    /**
      * Get duplicate groups
      */
     public function getDuplicateGroups()

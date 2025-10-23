@@ -133,15 +133,34 @@ class CsvImportService
      */
     private function checkForDuplicates(array $record): array
     {
+        // Check if there's already a duplicate group for this exact data
+        $existingDuplicateGroup = Client::where('company_name', $record['company_name'])
+            ->where('email', $record['email'])
+            ->where('phone_number', $record['phone_number'])
+            ->whereNotNull('duplicate_group_id')
+            ->first();
+
+        if ($existingDuplicateGroup) {
+            return [
+                'is_duplicate' => true,
+                'group_id' => $existingDuplicateGroup->duplicate_group_id
+            ];
+        }
+
+        // Check if there's any existing client with this data
         $existingClient = Client::where('company_name', $record['company_name'])
             ->where('email', $record['email'])
             ->where('phone_number', $record['phone_number'])
             ->first();
 
         if ($existingClient) {
+            // This is a duplicate of an existing record, but don't modify the existing record
+            // Create a new group ID for this duplicate
+            $newGroupId = Str::uuid()->toString();
+
             return [
                 'is_duplicate' => true,
-                'group_id' => $existingClient->duplicate_group_id ?? Str::uuid()->toString()
+                'group_id' => $newGroupId
             ];
         }
 
