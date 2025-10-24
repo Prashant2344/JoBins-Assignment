@@ -33,6 +33,7 @@ Route::prefix('v1')->group(function () {
     Route::post('clients/import', [ClientController::class, 'importCsv']);
     Route::get('clients/export', [ClientController::class, 'exportCsv']);
     Route::get('clients/duplicates/groups', [ClientController::class, 'getDuplicateGroups']);
+    Route::get('clients/duplicates/groups/{groupId}/clients', [ClientController::class, 'getDuplicateGroupClients']);
     Route::get('clients/stats', [ClientController::class, 'getStats']);
     Route::delete('clients/delete-all', [ClientController::class, 'deleteAll']);
     Route::apiResource('clients', ClientController::class);

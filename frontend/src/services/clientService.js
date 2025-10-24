@@ -57,9 +57,14 @@ export const clientService = {
     });
   },
 
-  // Get duplicate groups
-  getDuplicateGroups: () => {
-    return api.get('/clients/duplicates/groups');
+  // Get duplicate groups with pagination
+  getDuplicateGroups: (params = {}) => {
+    return api.get('/clients/duplicates/groups', { params });
+  },
+
+  // Get clients for a specific duplicate group
+  getDuplicateGroupClients: (groupId, params = {}) => {
+    return api.get(`/clients/duplicates/groups/${groupId}/clients`, { params });
   },
 
   // Get statistics
