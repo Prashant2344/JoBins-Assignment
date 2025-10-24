@@ -53,7 +53,8 @@ class ClientController extends Controller
 
         // Pagination
         $perPage = $request->get('per_page', 15);
-        $clients = $query->orderBy('created_at', 'desc')->paginate($perPage);
+        $page = $request->get('page', 1);
+        $clients = $query->orderBy('created_at', 'desc')->paginate($perPage, ['*'], 'page', $page);
 
         return response()->json([
             'success' => true,

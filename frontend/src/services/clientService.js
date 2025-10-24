@@ -10,9 +10,17 @@ const api = axios.create({
 });
 
 export const clientService = {
-  // Get all clients with optional filters
   getClients: (params = {}) => {
-    return api.get('/clients', { params });
+    const apiParams = {
+      ...params,
+      page: params.page !== undefined ? params.page + 1 : undefined,
+      per_page: params.pageSize || params.per_page
+    };
+    
+    // Remove DataGrid specific parameters
+    delete apiParams.pageSize;
+    
+    return api.get('/clients', { params: apiParams });
   },
 
   // Get a specific client

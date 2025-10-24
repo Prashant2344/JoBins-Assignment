@@ -35,6 +35,13 @@ function ClientManagement() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  
+  // Server-side pagination state
+  const [paginationModel, setPaginationModel] = useState({
+    page: 0,
+    pageSize: 10,
+  });
+  const [rowCount, setRowCount] = useState(0);
 
   const columns = [
     { field: 'id', headerName: 'ID', width: 70 },
@@ -65,12 +72,23 @@ function ClientManagement() {
     fetchStats();
   }, []);
 
+  // Fetch clients when pagination changes
+  useEffect(() => {
+    fetchClients();
+  }, [paginationModel]);
+
   const fetchClients = async () => {
     try {
       setLoading(true);
-      const response = await clientService.getClients();
-      // The API returns paginated data, so we need to access response.data.data.data
-      setClients(response.data.data.data || []);
+      const response = await clientService.getClients({
+        page: paginationModel.page,
+        pageSize: paginationModel.pageSize
+      });
+      
+      // The API returns paginated data with Laravel pagination structure
+      const paginatedData = response.data.data;
+      setClients(paginatedData.data || []);
+      setRowCount(paginatedData.total || 0);
     } catch (err) {
       setError('Failed to fetch clients');
       console.error('Error fetching clients:', err);
@@ -93,7 +111,8 @@ function ClientManagement() {
   };
 
   const handleImportSuccess = () => {
-    fetchClients();
+    // Reset to first page when importing new data
+    setPaginationModel(prev => ({ ...prev, page: 0 }));
     fetchStats();
   };
 
@@ -102,8 +121,13 @@ function ClientManagement() {
   };
 
   const handleDuplicateAction = () => {
-    fetchClients();
+    // Reset to first page when managing duplicates
+    setPaginationModel(prev => ({ ...prev, page: 0 }));
     fetchStats();
+  };
+
+  const handlePaginationModelChange = (newModel) => {
+    setPaginationModel(newModel);
   };
 
   if (loading && clients.length === 0) {
@@ -157,12 +181,11 @@ function ClientManagement() {
           <DataGrid
             rows={clients}
             columns={columns}
-            initialState={{
-              pagination: {
-                paginationModel: { page: 0, pageSize: 10 },
-              },
-            }}
+            paginationModel={paginationModel}
+            onPaginationModelChange={handlePaginationModelChange}
             pageSizeOptions={[10, 25, 50]}
+            paginationMode="server"
+            rowCount={rowCount}
             checkboxSelection
             disableRowSelectionOnClick
             loading={loading}
