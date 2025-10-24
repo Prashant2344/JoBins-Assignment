@@ -1,24 +1,44 @@
-import logo from './logo.svg';
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { ThemeProvider, createTheme } from '@mui/material/styles';
+import CssBaseline from '@mui/material/CssBaseline';
+import { Box, AppBar, Toolbar, Typography, Container } from '@mui/material';
+import ClientManagement from './components/ClientManagement';
 import './App.css';
+
+const theme = createTheme({
+  palette: {
+    primary: {
+      main: '#1976d2',
+    },
+    secondary: {
+      main: '#dc004e',
+    },
+  },
+});
 
 function App() {
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <Router>
+        <Box sx={{ flexGrow: 1 }}>
+          <AppBar position="static">
+            <Toolbar>
+              <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+                Client Management System
+              </Typography>
+            </Toolbar>
+          </AppBar>
+          
+          <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
+            <Routes>
+              <Route path="/" element={<ClientManagement />} />
+            </Routes>
+          </Container>
+        </Box>
+      </Router>
+    </ThemeProvider>
   );
 }
 
