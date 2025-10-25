@@ -39,14 +39,17 @@ export const clientService = {
   },
 
   // Import CSV
-  importCsv: (file) => {
-    const formData = new FormData();
-    formData.append('csv_file', file);
+  importCsv: (formData) => {
     return api.post('/clients/import', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
     });
+  },
+
+  // Get batch configuration
+  getBatchConfig: () => {
+    return api.get('/clients/batch-config');
   },
 
   // Export CSV

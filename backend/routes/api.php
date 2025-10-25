@@ -35,6 +35,7 @@ Route::prefix('v1')->group(function () {
     Route::get('clients/duplicates/groups', [ClientController::class, 'getDuplicateGroups']);
     Route::get('clients/duplicates/groups/{groupId}/clients', [ClientController::class, 'getDuplicateGroupClients']);
     Route::get('clients/stats', [ClientController::class, 'getStats']);
+    Route::get('clients/batch-config', [ClientController::class, 'getBatchConfig']);
     Route::delete('clients/delete-all', [ClientController::class, 'deleteAll']);
     Route::apiResource('clients', ClientController::class);
 });

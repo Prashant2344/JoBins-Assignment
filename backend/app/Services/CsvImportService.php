@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Client;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use League\Csv\Reader;
@@ -16,6 +17,8 @@ class CsvImportService
     private $duplicates = [];
     private $imported = [];
     private $batchId;
+    private $batchSize = 1000;
+    private $maxErrors = 100;
 
     public function __construct()
     {
@@ -23,7 +26,7 @@ class CsvImportService
     }
 
     /**
-     * Import CSV file and handle duplicates
+     * Import CSV file and handle duplicates with batch processing
      */
     public function importCsv(UploadedFile $file): array
     {
@@ -45,49 +48,91 @@ class CsvImportService
                 'duplicates' => 0,
                 'errors' => 0,
                 'duplicate_groups' => [],
-                'errors_details' => []
+                'errors_details' => [],
+                'total_rows' => 0,
+                'processed_rows' => 0
             ];
 
-            DB::transaction(function () use ($records, &$results) {
-                $duplicateGroups = [];
-                $rowNumber = 1;
+            // Convert records to array for batch processing
+            $recordsArray = iterator_to_array($records);
+            $results['total_rows'] = count($recordsArray);
 
-                foreach ($records as $record) {
-                    $rowNumber++;
-                    
-                    // Validate row data
-                    $validation = $this->validateRow($record, $rowNumber);
-                    if (!$validation['valid']) {
-                        $results['errors']++;
-                        $results['errors_details'][] = $validation['errors'];
-                        continue;
-                    }
+            // Process records in batches
+            $batches = array_chunk($recordsArray, $this->batchSize);
+            $duplicateGroups = [];
 
-                    // Check for duplicates
-                    $duplicateCheck = $this->checkForDuplicates($record);
-                    
-                    if ($duplicateCheck['is_duplicate']) {
-                        $results['duplicates']++;
-                        $duplicateGroupId = $duplicateCheck['group_id'];
-                        
-                        // Add to duplicate group
-                        if (!isset($duplicateGroups[$duplicateGroupId])) {
-                            $duplicateGroups[$duplicateGroupId] = [];
+            foreach ($batches as $batchIndex => $batch) {
+                Log::info('Processing batch: ' . $batchIndex);
+                Log::info('Batch size: ' . count($batch));
+                Log::info('Batch: ' . json_encode($batch));
+                try {
+                    DB::transaction(function () use ($batch, &$results, &$duplicateGroups, $batchIndex) {
+                        foreach ($batch as $recordIndex => $record) {
+                            $rowNumber = ($batchIndex * $this->batchSize) + $recordIndex + 2; // +2 because CSV has header and 0-indexed
+                            $results['processed_rows']++;
+                            
+                            // Stop processing if we hit too many errors
+                            if ($results['errors'] >= $this->maxErrors) {
+                                $results['errors_details'][] = [
+                                    'row' => $rowNumber,
+                                    'error' => 'Processing stopped due to too many errors (max: ' . $this->maxErrors . ')',
+                                    'type' => 'processing_limit'
+                                ];
+                                return;
+                            }
+                            
+                            // Validate row data
+                            $validation = $this->validateRow($record, $rowNumber);
+                            if (!$validation['valid']) {
+                                $results['errors']++;
+                                $results['errors_details'][] = $validation['errors'];
+                                continue;
+                            }
+
+                            // Check for duplicates
+                            $duplicateCheck = $this->checkForDuplicates($record);
+                            
+                            if ($duplicateCheck['is_duplicate']) {
+                                $results['duplicates']++;
+                                $duplicateGroupId = $duplicateCheck['group_id'];
+                                
+                                // Add to duplicate group
+                                if (!isset($duplicateGroups[$duplicateGroupId])) {
+                                    $duplicateGroups[$duplicateGroupId] = [];
+                                }
+                                $duplicateGroups[$duplicateGroupId][] = $record;
+                                
+                                // Create duplicate record
+                                $this->createClientRecord($record, true, $duplicateGroupId, $rowNumber);
+                            } else {
+                                $results['imported']++;
+                                $this->createClientRecord($record, false, null, $rowNumber);
+                            }
                         }
-                        $duplicateGroups[$duplicateGroupId][] = $record;
-                        
-                        // Create duplicate record
-                        $this->createClientRecord($record, true, $duplicateGroupId, $rowNumber);
-                    } else {
-                        $results['imported']++;
-                        $this->createClientRecord($record, false, null, $rowNumber);
-                    }
+                    });
+                } catch (\Exception $e) {
+                    // Log batch error but continue with next batch
+                    Log::error('Batch processing error: ' . $e->getMessage());
+                    $results['errors']++;
+                    $results['errors_details'][] = [
+                        'row' => 'Batch ' . ($batchIndex + 1),
+                        'error' => 'Batch processing error: ' . $e->getMessage(),
+                        'type' => 'batch_error'
+                    ];
                 }
+            }
 
-                $results['duplicate_groups'] = $duplicateGroups;
-            });
+            $results['duplicate_groups'] = $duplicateGroups;
 
-            return $this->buildResponse(true, 'Import completed successfully', $results);
+            $message = 'Import completed successfully';
+            if ($results['errors'] > 0) {
+                $message .= " with {$results['errors']} errors";
+            }
+            if ($results['errors'] >= $this->maxErrors) {
+                $message .= '. Processing was stopped due to too many errors.';
+            }
+
+            return $this->buildResponse(true, $message, $results);
 
         } catch (\Exception $e) {
             return $this->buildResponse(false, 'Import failed: ' . $e->getMessage());
@@ -104,7 +149,7 @@ class CsvImportService
     }
 
     /**
-     * Validate individual row data
+     * Validate individual row data with enhanced error messages
      */
     private function validateRow(array $record, int $rowNumber): array
     {
@@ -112,15 +157,32 @@ class CsvImportService
             'company_name' => 'required|string|max:255',
             'email' => 'required|email|max:255',
             'phone_number' => 'required|string|max:255',
+        ], [
+            'company_name.required' => 'Company name is required',
+            'company_name.string' => 'Company name must be a valid text',
+            'company_name.max' => 'Company name cannot exceed 255 characters',
+            'email.required' => 'Email address is required',
+            'email.email' => 'Email must be a valid email address',
+            'email.max' => 'Email cannot exceed 255 characters',
+            'phone_number.required' => 'Phone number is required',
+            'phone_number.string' => 'Phone number must be a valid text',
+            'phone_number.max' => 'Phone number cannot exceed 255 characters',
         ]);
 
         if ($validator->fails()) {
+            $errors = [];
+            foreach ($validator->errors()->all() as $error) {
+                $errors[] = $error;
+            }
+
             return [
                 'valid' => false,
                 'errors' => [
                     'row' => $rowNumber,
                     'data' => $record,
-                    'validation_errors' => $validator->errors()->toArray()
+                    'validation_errors' => $validator->errors()->toArray(),
+                    'error_messages' => $errors,
+                    'type' => 'validation_error'
                 ]
             ];
         }
@@ -210,5 +272,33 @@ class CsvImportService
             'duplicate_clients' => Client::duplicates()->count(),
             'duplicate_groups' => Client::duplicates()->distinct('duplicate_group_id')->count()
         ];
+    }
+
+    /**
+     * Get batch processing configuration
+     */
+    public function getBatchConfig(): array
+    {
+        return [
+            'batch_size' => $this->batchSize,
+            'max_errors' => $this->maxErrors,
+            'batch_id' => $this->batchId
+        ];
+    }
+
+    /**
+     * Set batch size for processing
+     */
+    public function setBatchSize(int $size): void
+    {
+        $this->batchSize = max(100, min(5000, $size)); // Between 100 and 5000
+    }
+
+    /**
+     * Set maximum errors before stopping
+     */
+    public function setMaxErrors(int $maxErrors): void
+    {
+        $this->maxErrors = max(10, min(1000, $maxErrors)); // Between 10 and 1000
     }
 }

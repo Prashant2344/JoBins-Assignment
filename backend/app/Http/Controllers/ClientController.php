@@ -64,11 +64,21 @@ class ClientController extends Controller
     }
 
     /**
-     * Import CSV file
+     * Import CSV file with batch processing support
      */
     public function importCsv(CsvImportRequest $request)
     {
         $file = $request->file('csv_file');
+        
+        // Configure batch processing if provided
+        if ($request->has('batch_size')) {
+            $this->csvImportService->setBatchSize($request->input('batch_size'));
+        }
+        
+        if ($request->has('max_errors')) {
+            $this->csvImportService->setMaxErrors($request->input('max_errors'));
+        }
+        
         $result = $this->csvImportService->importCsv($file);
 
         $statusCode = $result['success'] ? 200 : 422;
@@ -211,6 +221,17 @@ class ClientController extends Controller
         return response()->json([
             'success' => true,
             'data' => $this->csvImportService->getImportStats()
+        ]);
+    }
+
+    /**
+     * Get batch processing configuration
+     */
+    public function getBatchConfig()
+    {
+        return response()->json([
+            'success' => true,
+            'data' => $this->csvImportService->getBatchConfig()
         ]);
     }
 
