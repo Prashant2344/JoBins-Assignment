@@ -3,6 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\CsvImportRequest;
+use App\Http\Resources\BatchConfigResource;
+use App\Http\Resources\ClientCollection;
+use App\Http\Resources\ClientResource;
+use App\Http\Resources\ClientWithDuplicatesResource;
+use App\Http\Resources\DuplicateGroupCollection;
+use App\Http\Resources\StatsResource;
 use App\Models\Client;
 use App\Services\CsvImportService;
 use Illuminate\Http\Request;
@@ -56,11 +62,10 @@ class ClientController extends Controller
         $page = $request->get('page', 1);
         $clients = $query->orderBy('created_at', 'desc')->paginate($perPage, ['*'], 'page', $page);
 
-        return response()->json([
-            'success' => true,
-            'data' => $clients,
-            'stats' => $this->csvImportService->getImportStats()
-        ]);
+        return (new ClientCollection($clients))
+            ->additional([
+                'stats' => new StatsResource($this->csvImportService->getImportStats())
+            ]);
     }
 
     /**
@@ -155,36 +160,19 @@ class ClientController extends Controller
             ->orderBy('count', 'desc')
             ->paginate($perPage, ['*'], 'page', $page);
 
-        $groupsWithDetails = [];
-        foreach ($duplicateGroups->items() as $group) {
-            $clients = [];
+        // Transform the groups data to work with our resource
+        $duplicateGroups->getCollection()->transform(function ($group) use ($request) {
+            $groupData = $group->toArray();
             if ($request->has('include_clients') && $request->boolean('include_clients')) {
                 $clients = Client::byDuplicateGroup($group->duplicate_group_id)
                     ->select(['id', 'company_name', 'email', 'phone_number', 'created_at'])
                     ->get();
+                $groupData['clients'] = $clients;
             }
-            
-            $groupsWithDetails[] = [
-                'group_id' => $group->duplicate_group_id,
-                'count' => $group->count,
-                'representative_company' => $group->representative_company,
-                'representative_email' => $group->representative_email,
-                'representative_phone' => $group->representative_phone,
-                'clients' => $clients
-            ];
-        }
-
-        return response()->json([
-            'success' => true,
-            'data' => $groupsWithDetails,
-            'pagination' => [
-                'current_page' => $duplicateGroups->currentPage(),
-                'last_page' => $duplicateGroups->lastPage(),
-                'per_page' => $duplicateGroups->perPage(),
-                'total' => $duplicateGroups->total(),
-                'has_more' => $duplicateGroups->hasMorePages()
-            ]
-        ]);
+            return (object) $groupData;
+        });
+        
+        return new DuplicateGroupCollection($duplicateGroups);
     }
 
     /**
@@ -200,17 +188,7 @@ class ClientController extends Controller
             ->orderBy('created_at', 'desc')
             ->paginate($perPage, ['*'], 'page', $page);
 
-        return response()->json([
-            'success' => true,
-            'data' => $clients->items(),
-            'pagination' => [
-                'current_page' => $clients->currentPage(),
-                'last_page' => $clients->lastPage(),
-                'per_page' => $clients->perPage(),
-                'total' => $clients->total(),
-                'has_more' => $clients->hasMorePages()
-            ]
-        ]);
+        return new ClientCollection($clients);
     }
 
     /**
@@ -218,10 +196,7 @@ class ClientController extends Controller
      */
     public function getStats()
     {
-        return response()->json([
-            'success' => true,
-            'data' => $this->csvImportService->getImportStats()
-        ]);
+        return new StatsResource($this->csvImportService->getImportStats());
     }
 
     /**
@@ -229,10 +204,7 @@ class ClientController extends Controller
      */
     public function getBatchConfig()
     {
-        return response()->json([
-            'success' => true,
-            'data' => $this->csvImportService->getBatchConfig()
-        ]);
+        return new BatchConfigResource($this->csvImportService->getBatchConfig());
     }
 
     /**
@@ -250,12 +222,9 @@ class ClientController extends Controller
                 ->get();
         }
 
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'client' => $client,
-                'related_duplicates' => $relatedClients
-            ]
+        return new ClientWithDuplicatesResource([
+            'client' => $client,
+            'related_duplicates' => $relatedClients
         ]);
     }
 
@@ -273,11 +242,10 @@ class ClientController extends Controller
         $client = Client::findOrFail($id);
         $client->update($request->only(['company_name', 'email', 'phone_number']));
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Client updated successfully',
-            'data' => $client
-        ]);
+        return (new ClientResource($client))
+            ->additional([
+                'message' => 'Client updated successfully'
+            ]);
     }
 
     /**

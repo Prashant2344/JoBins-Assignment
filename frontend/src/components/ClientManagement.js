@@ -85,10 +85,8 @@ function ClientManagement() {
         pageSize: paginationModel.pageSize
       });
       
-      // The API returns paginated data with Laravel pagination structure
-      const paginatedData = response.data.data;
-      setClients(paginatedData.data || []);
-      setRowCount(paginatedData.total || 0);
+      setClients(response.data.data || []);
+      setRowCount(response.data.pagination?.total || 0);
     } catch (err) {
       setError('Failed to fetch clients');
       console.error('Error fetching clients:', err);
