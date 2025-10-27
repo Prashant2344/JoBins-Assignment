@@ -141,13 +141,13 @@ A fullstack CSV-based client management system with duplicate detection built wi
    npm start
    ```
    The frontend will be available at `http://localhost:3000`
-
-## 🧪 Running Tests
-
+  
 ## Running together
   ```bash
    npm run dev
   ```
+
+## 🧪 Running Tests
 
 ### Backend Tests
 ```bash
